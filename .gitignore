@@ -1,0 +1,19 @@
+# API keys — never commit
+.env
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# macOS metadata
+.DS_Store
+
+# SQLite databases created at runtime
+*.db
+
+# Virtual environments
+.venv/
+venv/
+env/
