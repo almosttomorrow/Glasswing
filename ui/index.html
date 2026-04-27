@@ -245,41 +245,11 @@
       </div>
     </section>
 
-    <!-- Remediation CTA — shown after findings reveal, before Wave 4 runs -->
-    <section class="cta-section" id="ctaSection" hidden>
-      <div class="cta-left">
-        <div class="cta-icon">✓</div>
-        <div>
-          <h2 class="cta-heading">Finding confirmed. What happens next?</h2>
-          <p class="cta-body">
-            You've seen what the AI found and why it's critical. The natural question is:
-            <strong>how do we fix it?</strong>
-          </p>
-          <p class="cta-body">
-            Wave 4 runs two additional AI agents. The first ranks every confirmed finding
-            by how easy it is to exploit, how many users it affects, and how much effort
-            a fix requires — so your engineering team knows exactly where to start.
-            The second writes a targeted code patch for the highest-priority issue,
-            with a plain-English explanation of why the fix is complete.
-          </p>
-          <p class="cta-body">
-            This is the step that turns a security report into an actionable plan.
-          </p>
-        </div>
-      </div>
-      <div class="cta-right">
-        <div class="cta-what">
-          <div class="cta-what-title">Wave 4 will generate:</div>
-          <div class="cta-what-item"><span class="cta-check">⚡</span> Priority ranking by exploitability &amp; blast radius</div>
-          <div class="cta-what-item"><span class="cta-check">📝</span> A minimal, targeted code patch</div>
-          <div class="cta-what-item"><span class="cta-check">💬</span> Plain-English explanation of the fix</div>
-        </div>
-        <button class="btn-remediate" id="remediateBtn">
-          Run Remediation Plan →
-        </button>
-        <p class="cta-note">Takes ~20–30 seconds · Uses approx. 2,000 additional tokens</p>
-      </div>
-    </section>
+    <!-- Remediation CTA — minimal bar shown after user reads the finding -->
+    <div class="cta-bar" id="ctaSection" hidden>
+      <span class="cta-text">Wave 4 — rank findings by risk and generate a targeted code fix.</span>
+      <button class="btn-remediate" id="remediateBtn">Run Remediation →</button>
+    </div>
 
     <!-- ══════════════════════════════════════════════════════════════════════
          WAVE 4 — REMEDIATION

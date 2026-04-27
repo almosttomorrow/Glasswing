@@ -1340,23 +1340,25 @@ function showReveal(verdicts) {
     ? PLAIN_ENGLISH[fileKey]
     : `<p>${verdict.verdict}</p><p>${verdict.impact}</p>`;
 
-  const sec = document.getElementById('revealSection');
-  sec.hidden = false;
-  setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  document.getElementById('revealSection').hidden = false;
 
-  // Show the remediation CTA and wire up the button with access to verdicts
-  const cta = document.getElementById('ctaSection');
-  cta.hidden = false;
-  const remBtn = document.getElementById('remediateBtn');
-  // Replace any previous listener by cloning the node
-  const freshBtn = remBtn.cloneNode(true);
-  remBtn.replaceWith(freshBtn);
-  freshBtn.addEventListener('click', async () => {
-    freshBtn.disabled = true;
-    freshBtn.textContent = '⟳  Running…';
-    cta.hidden = true;
-    await runWave4(verdicts);
-  });
+  // Delay the CTA so it appears after the user has had a moment to read the finding,
+  // not the instant Wave 3 returns. 900ms clears the wave-complete animation.
+  setTimeout(() => {
+    const cta = document.getElementById('ctaSection');
+    cta.hidden = false;
+    cta.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    const remBtn = document.getElementById('remediateBtn');
+    const freshBtn = remBtn.cloneNode(true);
+    remBtn.replaceWith(freshBtn);
+    freshBtn.addEventListener('click', async () => {
+      freshBtn.disabled = true;
+      freshBtn.textContent = '⟳  Running…';
+      cta.hidden = true;
+      await runWave4(verdicts);
+    });
+  }, 900);
 }
 
 // ── Main pipeline ─────────────────────────────────────────────────────────
