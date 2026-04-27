@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Glasswing — AI Vulnerability Hunting Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-icon">◈</span>
+      <div>
+        <div class="brand-name">Project Glasswing</div>
+        <div class="brand-sub">AI Vulnerability Hunting Pipeline · Demo</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="model-badge">claude-opus-4-5</span>
+      <div class="key-group">
+        <input type="password" id="apiKey" placeholder="Paste your Anthropic API key to run live" autocomplete="off" spellcheck="false">
+        <button id="runBtn" class="btn-run" disabled>▶&nbsp;Run Pipeline</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ── Introduction ───────────────────────────────────────────────────── -->
+    <section class="intro-section">
+      <div class="intro-left">
+        <h1>How AI finds security bugs that humans miss</h1>
+        <p>
+          In April 2026, Anthropic announced <strong>Project Glasswing</strong> — an AI pipeline that
+          independently discovered critical security vulnerabilities in major software like OpenBSD and
+          FreeBSD, including bugs that had gone undetected for up to 27 years.
+        </p>
+        <p>
+          This demo replicates the exact three-stage methodology on a fictional gaming platform called
+          <strong>PixelForge</strong>, which has one deliberately hidden vulnerability in its coin wallet.
+          Enter your Anthropic API key above and watch the AI find it — live, in real time.
+        </p>
+        <div class="disclaimer">
+          <span class="disclaimer-label">Note</span>
+          The real Glasswing used <em>Claude Mythos Preview</em>, an unreleased model not available via the
+          public API. This demo uses <strong>claude-opus-4-5</strong> — results are directionally the same
+          but may vary in depth.
+        </div>
+      </div>
+      <div class="intro-right">
+        <div class="target-card">
+          <div class="target-card-header">
+            <span class="folder-icon">📁</span>
+            <div>
+              <div class="target-title">PixelForge Gaming Platform</div>
+              <div class="target-sub">Synthetic target · 5 Python files · 1 hidden critical bug</div>
+            </div>
+          </div>
+          <div class="file-list" id="fileList">
+            <!-- Populated by JS on load -->
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><div class="stat-n">3</div><div class="stat-l">AI Agents</div></div>
+          <div class="stat"><div class="stat-n">5</div><div class="stat-l">Files Scanned</div></div>
+          <div class="stat"><div class="stat-n">1</div><div class="stat-l">Critical Bug</div></div>
+          <div class="stat"><div class="stat-n">89%</div><div class="stat-l">Human–AI Agreement*</div></div>
+        </div>
+        <p class="stat-note">* Anthropic's reported agreement rate between AI and human security reviewers on severity ratings, from the real Glasswing project.</p>
+      </div>
+    </section>
+
+    <!-- ── Pipeline progress bar ──────────────────────────────────────────── -->
+    <div class="pipeline-bar">
+      <div class="pipe-step" id="pipe1">
+        <div class="pipe-circle">1</div>
+        <div class="pipe-label">Reconnaissance</div>
+      </div>
+      <div class="pipe-line"></div>
+      <div class="pipe-step" id="pipe2">
+        <div class="pipe-circle">2</div>
+        <div class="pipe-label">Investigation</div>
+      </div>
+      <div class="pipe-line"></div>
+      <div class="pipe-step" id="pipe3">
+        <div class="pipe-circle">3</div>
+        <div class="pipe-label">Confirmation</div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         WAVE 1 — RECONNAISSANCE
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <section class="wave-section" id="wave1-section">
+      <div class="wave-header w1-accent">
+        <div class="wave-badge w1-badge">Wave 1</div>
+        <div class="wave-title-group">
+          <h2>Reconnaissance</h2>
+          <p>The AI skims every file and scores each one: <em>how suspicious is this?</em></p>
+        </div>
+        <div class="wave-timer" id="wave1-timer"></div>
+      </div>
+
+      <div class="explainer">
+        <div class="explainer-icon">💡</div>
+        <div class="explainer-body">
+          <strong>What's happening:</strong> Think of this like a detective scanning a filing cabinet.
+          The AI reads just the first ~200 characters of each file and rates it from 1 to 5 — how likely
+          is this file to contain a security problem? Files that handle money, passwords, or user data score
+          higher. This quick pass avoids wasting time on files that are clearly safe.
+        </div>
+      </div>
+
+      <div class="file-grid" id="fileGrid">
+        <!-- Score cards generated by JS after Wave 1 completes -->
+        <div class="waiting-msg" id="wave1-waiting">Waiting for pipeline to start…</div>
+      </div>
+
+      <details class="raw-drawer">
+        <summary>See raw AI response</summary>
+        <div class="terminal" id="wave1-terminal"><!-- streamed here --></div>
+      </details>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         WAVE 2 — DEEP INVESTIGATION
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <section class="wave-section wave-locked" id="wave2-section">
+      <div class="wave-header w2-accent">
+        <div class="wave-badge w2-badge">Wave 2</div>
+        <div class="wave-title-group">
+          <h2>Deep Investigation</h2>
+          <p>Dedicated AI agents read every line of the highest-risk files.</p>
+        </div>
+        <div class="wave-timer" id="wave2-timer"></div>
+      </div>
+
+      <div class="explainer">
+        <div class="explainer-icon">🔍</div>
+        <div class="explainer-body">
+          <strong>What's happening:</strong> Any file scoring 4 or 5 gets its own dedicated AI agent that
+          reads every single line and looks for exactly how an attacker could exploit it. In the real
+          Glasswing project these agents could also <em>run</em> the code and test their theories — like
+          a locksmith not just spotting a weak lock, but picking it open to prove it works.
+          <span class="highlight-note">In this demo, agents run sequentially (browsers can't spawn true parallel threads)
+          — in the original pipeline they ran in parallel.</span>
+        </div>
+      </div>
+
+      <div class="agent-list" id="agentList">
+        <div class="waiting-msg" id="wave2-waiting">Waiting for Wave 1 to complete…</div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         WAVE 3 — EXPERT CONFIRMATION
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <section class="wave-section wave-locked" id="wave3-section">
+      <div class="wave-header w3-accent">
+        <div class="wave-badge w3-badge">Wave 3</div>
+        <div class="wave-title-group">
+          <h2>Expert Confirmation</h2>
+          <p>A senior AI reviewer validates: <em>is this real and critical enough to report?</em></p>
+        </div>
+        <div class="wave-timer" id="wave3-timer"></div>
+      </div>
+
+      <div class="explainer">
+        <div class="explainer-icon">✅</div>
+        <div class="explainer-body">
+          <strong>What's happening:</strong> Before anything is reported, a senior AI checks the work:
+          "Is this actually exploitable? Is it serious?" In the real Glasswing project, contracted human
+          security experts also reviewed every finding before it reached the software maintainer. Anthropic
+          found that human and AI severity ratings agreed <strong>89% of the time</strong> on a 198-report
+          sample.
+        </div>
+      </div>
+
+      <div class="validation-area" id="validationArea">
+        <div class="waiting-msg" id="wave3-waiting">Waiting for Wave 2 to complete…</div>
+      </div>
+
+      <details class="raw-drawer">
+        <summary>See raw AI response</summary>
+        <div class="terminal" id="wave3-terminal"><!-- streamed here --></div>
+      </details>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         FINAL REVEAL
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <section class="reveal-section" id="revealSection" hidden>
+      <div class="reveal-badge">★ Critical Vulnerability Confirmed</div>
+
+      <div class="reveal-grid">
+        <!-- Left: structured finding -->
+        <div>
+          <h2 class="reveal-h2">What the AI found</h2>
+          <div class="finding-table" id="findingTable">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Right: plain-English explanation -->
+        <div>
+          <h2 class="reveal-h2">What this means in plain English</h2>
+          <div class="plain-english" id="plainEnglish">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="real-world-box">
+        <h3>How this compares to the real Glasswing findings</h3>
+        <p>
+          The real Project Glasswing found vulnerabilities like a 17-year-old bug in FreeBSD's network
+          authentication code that let an unauthenticated attacker anywhere on the internet take full root
+          control of the system. The AI didn't just find the bug — it autonomously constructed a working
+          exploit: a 20-gadget ROP chain split across 6 carefully crafted network packets that hijacked
+          the server and added an SSH key.
+        </p>
+        <p>
+          This demo's planted bug follows the same pattern: a logic error hidden in routine-looking
+          financial code, invisible to normal code review. Integer sign-inversion in financial systems has
+          caused real-world losses in production — it's not a toy class of vulnerability.
+        </p>
+      </div>
+    </section>
+
+    <!-- No findings fallback -->
+    <section class="clean-section" id="cleanSection" hidden>
+      <div class="clean-inner">
+        <div class="clean-icon">✓</div>
+        <h2>No critical vulnerabilities confirmed</h2>
+        <p>The pipeline completed but did not confirm a critical finding this run. This can happen when the model interprets the code differently — try running again.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      Replicates the <a href="https://www.anthropic.com/glasswing" target="_blank" rel="noopener">Project Glasswing</a>
+      methodology · Uses <strong>claude-opus-4-5</strong> (public API), not Mythos Preview ·
+      Target codebase is synthetic — do not deploy · API key stored in <code>sessionStorage</code> only, never sent to any server
+    </p>
+  </footer>
+
+  <!-- ES module — loads Anthropic SDK from CDN, no build step needed -->
+  <script type="module" src="app.js"></script>
+
+</body>
+</html>

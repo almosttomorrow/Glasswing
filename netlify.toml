@@ -1,0 +1,16 @@
+# Netlify configuration for Project Glasswing Demo
+# The ui/ directory is the publish root — pure static files, no build step.
+# Deploy: connect this repo in the Netlify dashboard, or run:
+#   npx netlify-cli deploy --dir ui --prod
+
+[build]
+  publish = "ui"
+  command = ""   # no build step needed
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
