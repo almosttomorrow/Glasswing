@@ -709,6 +709,17 @@ const VALIDATE_SYSTEM =
   'confirmed (boolean), file (string), verdict (string), impact (string). ' +
   'Reply ONLY with the JSON array. No prose, no markdown code fences.';
 
+// Used in the plain-English reveal — this is a live model call, not hardcoded text.
+const EXPLAIN_SYSTEM =
+  'You are explaining a confirmed security vulnerability to a non-technical executive audience. ' +
+  'Write 4 short paragraphs in plain English — no jargon, no bullet points, no markdown, no headers. ' +
+  'Paragraph 1: what does the vulnerable code do in normal use? ' +
+  'Paragraph 2: what is the exact bug, in simple terms? ' +
+  'Paragraph 3: what would an attacker actually do, step by step, to exploit it? ' +
+  'Paragraph 4: why did this bug survive code review — what made it hard to spot? ' +
+  'Be concrete and use plain language a non-programmer can follow. ' +
+  'Separate paragraphs with a blank line. Output only the four paragraphs, nothing else.';
+
 // ── Runtime state ─────────────────────────────────────────────────────────
 let client  = null;
 const state = { scores: [], findings: [], verdicts: [] };
@@ -1024,7 +1035,7 @@ async function runWave3() {
 
 // ── Final reveal ──────────────────────────────────────────────────────────
 
-function showReveal(verdicts) {
+async function showReveal(verdicts) {
   const confirmed = verdicts.filter(v => v.confirmed);
 
   if (confirmed.length === 0) {
@@ -1033,18 +1044,18 @@ function showReveal(verdicts) {
     return;
   }
 
-  const verdict  = confirmed[0];
-  const finding  = state.findings.find(f => f.file === verdict.file) ?? {};
+  const verdict = confirmed[0];
+  const finding = state.findings.find(f => f.file === verdict.file) ?? {};
 
-  // Structured finding table
+  // Structured finding table — populated from the real model response
   const rows = [
-    ['File',        finding.file || verdict.file,          'prose'],
-    ['Type',        finding.type || 'Logic Error',          'prose'],
+    ['File',        finding.file || verdict.file,                   'prose'],
+    ['Type',        finding.type || 'Logic Error',                  'prose'],
     ['Severity',    (finding.severity || 'critical').toUpperCase(), 'sev-critical'],
-    ['Description', finding.description || verdict.verdict, 'prose'],
-    ['Exploit',     finding.exploit_example || '—',         ''],
-    ['AI Verdict',  verdict.verdict,                        'prose'],
-    ['Impact',      verdict.impact,                         'prose'],
+    ['Description', finding.description || verdict.verdict,         'prose'],
+    ['Exploit',     finding.exploit_example || '—',                 ''],
+    ['AI Verdict',  verdict.verdict,                                'prose'],
+    ['Impact',      verdict.impact,                                 'prose'],
   ];
 
   document.getElementById('findingTable').innerHTML = rows.map(([k, v, cls]) => `
@@ -1053,29 +1064,52 @@ function showReveal(verdicts) {
       <div class="finding-val ${cls}">${v}</div>
     </div>`).join('');
 
-  // Plain-English explanation — always shown regardless of what the model says
-  document.getElementById('plainEnglish').innerHTML = `
-    <p>The <code>transfer()</code> function in <code>wallet_api.py</code> handles moving
-    PixelForge coins between players — the in-game currency used to buy cosmetics.</p>
-
-    <p>It should only accept <strong>positive</strong> numbers. But it never validates
-    the sign of the amount. Worse, it first converts the number to a 32-bit integer using
-    <code>ctypes.c_int32()</code> — meaning a very large positive number silently
-    <em>wraps around</em> to a negative one.</p>
-
-    <p><strong>What an attacker does:</strong> Start with 0 coins. Call
-    <code>transfer(attacker, victim, -10000)</code>. The balance check asks:
-    "is the sender's balance ≥ −10,000?" — which is always true, even with zero coins.
-    The SQL then runs <code>balance − (−10000)</code>, which adds 10,000 coins to the
-    attacker. Repeat indefinitely.</p>
-
-    <p><strong>Why it passed code review:</strong> The guard clause looks correct at a
-    glance. The bug is not in the logic of the check — it's in the <em>assumption</em>
-    that the amount can never be negative, an assumption that is never enforced.</p>`;
+  // Show the reveal section immediately with a loading state for the explanation
+  const peEl = document.getElementById('plainEnglish');
+  peEl.innerHTML = `
+    <div class="explain-loading">
+      <span class="spinner"></span>&nbsp; AI is writing a plain-English explanation…
+    </div>
+    <div class="explain-stream" id="explain-stream"></div>`;
 
   const sec = document.getElementById('revealSection');
   sec.hidden = false;
   setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+  // Live API call — stream the explanation directly into the reveal panel
+  const context =
+    `File: ${finding.file}\n` +
+    `Vulnerability type: ${finding.type}\n` +
+    `Description: ${finding.description}\n` +
+    `Exploit example: ${finding.exploit_example}\n` +
+    `Severity: ${finding.severity}\n` +
+    `Validator verdict: ${verdict.verdict}\n` +
+    `Impact: ${verdict.impact}`;
+
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 600,
+    system: EXPLAIN_SYSTEM,
+    messages: [{ role: 'user', content: context }],
+  });
+
+  let fullExplanation = '';
+  const streamEl = document.getElementById('explain-stream');
+
+  for await (const ev of stream) {
+    if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
+      fullExplanation += ev.delta.text;
+      // Stream raw text so the audience sees the model writing in real time
+      streamEl.textContent = fullExplanation;
+    }
+  }
+
+  // Once complete, remove the loading indicator and render as proper paragraphs
+  peEl.innerHTML = fullExplanation
+    .split(/\n\n+/)
+    .filter(p => p.trim())
+    .map(p => `<p>${p.trim()}</p>`)
+    .join('');
 }
 
 // ── Main pipeline ─────────────────────────────────────────────────────────
@@ -1118,7 +1152,7 @@ async function runPipeline() {
     }
 
     const verdicts = await runWave3();
-    showReveal(verdicts);
+    await showReveal(verdicts);
 
     btn.textContent = '↺  Run Again';
     btn.disabled    = false;
