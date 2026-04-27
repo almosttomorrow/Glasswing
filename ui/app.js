@@ -1054,25 +1054,58 @@ function showReveal(verdicts) {
       <div class="finding-val ${cls}">${v}</div>
     </div>`).join('');
 
-  // Plain-English explanation — carefully written for a non-technical audience
-  document.getElementById('plainEnglish').innerHTML = `
-    <p>The <code>transfer()</code> function in <code>wallet_api.py</code> handles moving
-    PixelForge coins between players — the in-game currency used to buy cosmetics.</p>
+  // Per-file plain-English explanations — curated for a non-technical audience.
+  // Keyed by filename so the correct explanation is always shown regardless of
+  // which file the model confirms. Falls back to the model's own verdict text.
+  const PLAIN_ENGLISH = {
 
-    <p>It should only accept <strong>positive</strong> numbers. But it never validates
-    the sign of the amount. Worse, it first converts the number to a 32-bit integer using
-    <code>ctypes.c_int32()</code> — meaning a very large positive number silently
-    wraps around to a negative one.</p>
+    'wallet_api.py': `
+      <p>The <code>transfer()</code> function in <code>wallet_api.py</code> handles moving
+      PixelForge coins between players — the in-game currency used to buy cosmetics.</p>
 
-    <p><strong>What an attacker does:</strong> Start with 0 coins. Call
-    <code>transfer(attacker, victim, -10000)</code>. The balance check asks:
-    "is the sender's balance ≥ −10,000?" — which is always true, even with zero coins.
-    The SQL then runs <code>balance − (−10000)</code>, which adds 10,000 coins to the
-    attacker. Repeat indefinitely.</p>
+      <p>It should only accept <strong>positive</strong> numbers. But it never validates
+      the sign of the amount. Worse, it first converts the number to a 32-bit integer using
+      <code>ctypes.c_int32()</code> — meaning a very large positive number silently
+      wraps around to a negative one.</p>
 
-    <p><strong>Why it passed code review:</strong> The guard clause looks correct at a
-    glance. The bug is not in the logic of the check — it's in the assumption that the
-    amount can never be negative, an assumption that is never enforced anywhere.</p>`;
+      <p><strong>What an attacker does:</strong> Start with 0 coins. Call
+      <code>transfer(attacker, victim, -10000)</code>. The balance check asks:
+      "is the sender's balance ≥ −10,000?" — which is always true, even with zero coins.
+      The SQL then runs <code>balance − (−10000)</code>, which adds 10,000 coins to the
+      attacker. Repeat indefinitely.</p>
+
+      <p><strong>Why it passed code review:</strong> The guard clause looks correct at a
+      glance. The bug is not in the logic of the check — it's in the assumption that the
+      amount can never be negative, an assumption that is never enforced anywhere.</p>`,
+
+    'auth_service.py': `
+      <p>The <code>_hash_password()</code> function in <code>auth_service.py</code> is
+      responsible for turning a player's password into a value safe to store in the
+      database — so that even if the database is stolen, passwords can't be read directly.</p>
+
+      <p>The problem is the algorithm it uses: <strong>MD5</strong>. MD5 was designed in
+      1991 for checksums, not passwords. It is so fast that a modern consumer GPU can test
+      <em>billions</em> of password guesses per second against it. A secure password hasher
+      (like bcrypt or Argon2) is deliberately slow — designed to make each guess take
+      meaningful time, so brute-force attacks become impractical.</p>
+
+      <p><strong>What an attacker does:</strong> Obtain the database — via SQL injection
+      elsewhere in the app, an exposed backup, or an insider. Extract a row like
+      <code>salt='a1b2c3d4', pw_hash='5d41402abc4b2a76...'</code>. Run
+      <code>hashcat -m 10 hashes.txt</code> — hashcat tests MD5 at billions of attempts
+      per second and will crack most real-world passwords in minutes.</p>
+
+      <p><strong>Why it passed code review:</strong> The code includes a salt (which looks
+      responsible) and uses a well-known library function. The flaw is in the <em>choice</em>
+      of algorithm, not the structure of the code — and the comment even acknowledges the
+      issue, framing it as a known legacy debt rather than an active threat.</p>`,
+
+  };
+
+  const fileKey = verdict.file in PLAIN_ENGLISH ? verdict.file : null;
+  document.getElementById('plainEnglish').innerHTML = fileKey
+    ? PLAIN_ENGLISH[fileKey]
+    : `<p>${verdict.verdict}</p><p>${verdict.impact}</p>`;
 
   const sec = document.getElementById('revealSection');
   sec.hidden = false;
