@@ -18,6 +18,11 @@ const MODEL          = 'claude-opus-4-5';
 const HUNT_THRESHOLD = 4;   // files scoring this or above go to Wave 2
 const PREVIEW_CHARS  = 200; // characters sent per file in Wave 1 triage
 
+// Approximate pricing for claude-opus-4-5 (USD per million tokens).
+// Check https://www.anthropic.com/pricing for current rates.
+const PRICE_INPUT_PER_M  = 15.00;
+const PRICE_OUTPUT_PER_M = 75.00;
+
 // ── Target files (full source, identical to target/ directory) ────────────
 // Embedded so the demo works as a pure static site with no backend.
 const TARGET_METADATA = {
@@ -710,9 +715,38 @@ const VALIDATE_SYSTEM =
   'Reply ONLY with the JSON array. No prose, no markdown code fences.';
 
 
+const PRIORITISE_SYSTEM =
+  'You are a security engineer prioritising vulnerabilities for a development team. ' +
+  'Given confirmed findings, rank each one and assess how urgently it needs fixing. ' +
+  'Return a JSON array. Each object must have: ' +
+  'file (string), priority_label (string, e.g. "Fix Immediately"), ' +
+  'exploitability (string: "high", "medium", or "low"), ' +
+  'blast_radius (string: one sentence describing how many users/systems are affected), ' +
+  'patch_effort (string: "low", "medium", or "high"), ' +
+  'reasoning (string: two sentences explaining the ranking). ' +
+  'Reply ONLY with the JSON array. No prose, no markdown.';
+
+const PATCH_SYSTEM =
+  'You are a security engineer writing a minimal code fix. ' +
+  'Given a confirmed vulnerability and its full source file, produce a targeted patch. ' +
+  'Return a JSON object with: ' +
+  'file (string), ' +
+  'fix_summary (string: one sentence describing what the fix does), ' +
+  'patch_before (string: the exact lines to be replaced, as they appear in the file), ' +
+  'patch_after (string: the replacement lines that fix the vulnerability), ' +
+  'explanation (string: 2-3 sentences in plain English explaining why the fix works and why it is complete). ' +
+  'Keep the fix minimal — change only what is necessary to close the vulnerability. ' +
+  'Do not refactor, rename, or add features. ' +
+  'Reply ONLY with the JSON object. No prose, no markdown.';
+
 // ── Runtime state ─────────────────────────────────────────────────────────
 let client  = null;
-const state = { scores: [], findings: [], verdicts: [] };
+const state = {
+  scores:   [],
+  findings: [],
+  verdicts: [],
+  usage:    { input_tokens: 0, output_tokens: 0 },
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -732,6 +766,26 @@ function appendStream(id, text) {
   if (!el) return;
   el.textContent += text;
   el.scrollTop = el.scrollHeight;
+}
+
+/** Accumulate token usage from one API call and refresh the cost display. */
+function trackUsage(inputTokens, outputTokens) {
+  state.usage.input_tokens  += inputTokens;
+  state.usage.output_tokens += outputTokens;
+
+  const totalIn  = state.usage.input_tokens;
+  const totalOut = state.usage.output_tokens;
+  const cost = (totalIn / 1e6) * PRICE_INPUT_PER_M + (totalOut / 1e6) * PRICE_OUTPUT_PER_M;
+
+  const bar = document.getElementById('costBar');
+  if (bar) bar.hidden = false;
+
+  const tokEl = document.getElementById('costTokens');
+  if (tokEl) tokEl.textContent =
+    `${totalIn.toLocaleString()} input · ${totalOut.toLocaleString()} output tokens`;
+
+  const estEl = document.getElementById('costEst');
+  if (estEl) estEl.textContent = `$${cost.toFixed(4)}`;
 }
 
 /** Set the timer label for a wave. */
@@ -845,12 +899,16 @@ async function runWave1() {
   });
 
   let full = '';
+  let w1In = 0, w1Out = 0;
   for await (const ev of stream) {
+    if (ev.type === 'message_start')   w1In  = ev.message.usage?.input_tokens  ?? 0;
+    if (ev.type === 'message_delta')   w1Out = ev.usage?.output_tokens ?? 0;
     if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
       full += ev.delta.text;
       appendStream('wave1-terminal', ev.delta.text);
     }
   }
+  trackUsage(w1In, w1Out);
 
   const scores = tryParse(full);
   if (!scores) throw new Error('Wave 1: could not parse model response as JSON');
@@ -925,12 +983,16 @@ async function huntFile(filename) {
   });
 
   let full = '';
+  let w2In = 0, w2Out = 0;
   for await (const ev of stream) {
+    if (ev.type === 'message_start') w2In  = ev.message.usage?.input_tokens  ?? 0;
+    if (ev.type === 'message_delta') w2Out = ev.usage?.output_tokens ?? 0;
     if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
       full += ev.delta.text;
       appendStream(`stream-${safeId}`, ev.delta.text);
     }
   }
+  trackUsage(w2In, w2Out);
 
   const finding = tryParse(full) ?? { found: false, file: filename };
   finding.file  = filename;
@@ -1001,13 +1063,17 @@ async function runWave3() {
   });
 
   let full = '';
+  let w3In = 0, w3Out = 0;
   for await (const ev of stream) {
+    if (ev.type === 'message_start') w3In  = ev.message.usage?.input_tokens  ?? 0;
+    if (ev.type === 'message_delta') w3Out = ev.usage?.output_tokens ?? 0;
     if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
       full += ev.delta.text;
       appendStream('val-stream', ev.delta.text);
       appendStream('wave3-terminal', ev.delta.text);
     }
   }
+  trackUsage(w3In, w3Out);
 
   const verdicts = tryParse(full) ?? [];
   state.verdicts = verdicts;
@@ -1021,6 +1087,173 @@ async function runWave3() {
   doneWave(3);
 
   return verdicts;
+}
+
+// ── Wave 4 — Remediation ──────────────────────────────────────────────────
+
+function renderPriorityCards(items) {
+  const area = document.getElementById('priorityArea');
+  area.innerHTML = '';
+
+  for (const item of items) {
+    const exploitClass = item.exploitability?.toLowerCase() ?? 'high';
+    const effortClass  = item.patch_effort?.toLowerCase()  ?? 'medium';
+
+    area.insertAdjacentHTML('beforeend', `
+      <div class="priority-card">
+        <div class="priority-card-header">
+          <span class="priority-rank">#1 Priority</span>
+          <span class="priority-file">${item.file}</span>
+          <span class="priority-label">${item.priority_label ?? 'Fix Immediately'}</span>
+        </div>
+        <div class="priority-metrics">
+          <div class="priority-metric">
+            <div class="metric-key">Exploitability</div>
+            <div class="metric-val ${exploitClass}">${(item.exploitability ?? '—').toUpperCase()}</div>
+          </div>
+          <div class="priority-metric">
+            <div class="metric-key">Blast Radius</div>
+            <div class="metric-val">${item.blast_radius ?? '—'}</div>
+          </div>
+          <div class="priority-metric">
+            <div class="metric-key">Patch Effort</div>
+            <div class="metric-val ${effortClass}">${(item.patch_effort ?? '—').toUpperCase()}</div>
+          </div>
+        </div>
+        <div class="priority-reasoning">${item.reasoning ?? ''}</div>
+      </div>`);
+  }
+}
+
+function renderPatch(patch) {
+  const area = document.getElementById('patchArea');
+  if (!patch) {
+    area.innerHTML = '<p class="waiting-msg">No patch generated.</p>';
+    return;
+  }
+
+  // Build unified-style diff lines from before/after strings
+  const beforeLines = (patch.patch_before ?? '').split('\n');
+  const afterLines  = (patch.patch_after  ?? '').split('\n');
+
+  const removedHtml = beforeLines
+    .map(l => `<span class="diff-line removed">${escHtml(l)}</span>`).join('\n');
+  const addedHtml   = afterLines
+    .map(l => `<span class="diff-line added">${escHtml(l)}</span>`).join('\n');
+
+  area.innerHTML = `
+    <div class="patch-card">
+      <div class="patch-summary">
+        <strong>${patch.file}</strong> — ${patch.fix_summary ?? ''}
+      </div>
+      <div class="diff-block">
+        <div class="diff-section-label diff-before-label">Before (vulnerable)</div>
+        <pre style="margin:0;padding:8px 0">${removedHtml}</pre>
+        <div class="diff-section-label diff-after-label">After (fixed)</div>
+        <pre style="margin:0;padding:8px 0">${addedHtml}</pre>
+      </div>
+      <div class="patch-explanation">${patch.explanation ?? ''}</div>
+    </div>`;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function runWave4(verdicts) {
+  const confirmed = verdicts.filter(v => v.confirmed);
+  if (confirmed.length === 0) return;
+
+  // Unlock and activate Wave 4
+  const sec = document.getElementById('wave4-section');
+  sec.classList.remove('wave-locked');
+  sec.classList.add('wave-active');
+  setPipeState(4, 'active');
+  sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const t0 = Date.now();
+
+  // ── Step A: Priority Assessment ────────────────────────────────────────
+  document.getElementById('priority-state').innerHTML =
+    '<span class="spinner"></span>&nbsp;Assessing…';
+
+  const priorityDrawer = document.querySelector('#priorityPanel .raw-drawer');
+  if (priorityDrawer) priorityDrawer.open = true;
+
+  const cleanFindings = confirmed.map(({ file, verdict, impact }) =>
+    ({ file, verdict, impact })
+  );
+
+  const pStream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 512,
+    system: PRIORITISE_SYSTEM,
+    messages: [{ role: 'user', content: JSON.stringify(cleanFindings, null, 2) }],
+  });
+
+  let pFull = '';
+  let pIn = 0, pOut = 0;
+  for await (const ev of pStream) {
+    if (ev.type === 'message_start') pIn  = ev.message.usage?.input_tokens  ?? 0;
+    if (ev.type === 'message_delta') pOut = ev.usage?.output_tokens ?? 0;
+    if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
+      pFull += ev.delta.text;
+      appendStream('wave4a-terminal', ev.delta.text);
+    }
+  }
+  trackUsage(pIn, pOut);
+
+  const priorities = tryParse(pFull) ?? [];
+  renderPriorityCards(priorities);
+  document.getElementById('priority-state').textContent = '✓ Complete';
+
+  // ── Step B: Patch Generation ───────────────────────────────────────────
+  document.getElementById('patch-state').innerHTML =
+    '<span class="spinner"></span>&nbsp;Generating patch…';
+
+  const patchDrawer = document.querySelector('#patchPanel .raw-drawer');
+  if (patchDrawer) patchDrawer.open = true;
+
+  // Use the top-priority confirmed finding for patch generation
+  const topFile   = priorities[0]?.file ?? confirmed[0]?.file;
+  const topFinding = state.findings.find(f => f.file === topFile) ?? {};
+  const fileSource = TARGET_FILES[topFile] ?? '';
+
+  const patchPrompt =
+    `Confirmed vulnerability:\n` +
+    `File: ${topFile}\n` +
+    `Type: ${topFinding.type ?? ''}\n` +
+    `Description: ${topFinding.description ?? ''}\n` +
+    `Exploit example: ${topFinding.exploit_example ?? ''}\n\n` +
+    `Full source file:\n\`\`\`python\n${fileSource}\n\`\`\``;
+
+  const ptStream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 1024,
+    system: PATCH_SYSTEM,
+    messages: [{ role: 'user', content: patchPrompt }],
+  });
+
+  let ptFull = '';
+  let ptIn = 0, ptOut = 0;
+  for await (const ev of ptStream) {
+    if (ev.type === 'message_start') ptIn  = ev.message.usage?.input_tokens  ?? 0;
+    if (ev.type === 'message_delta') ptOut = ev.usage?.output_tokens ?? 0;
+    if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
+      ptFull += ev.delta.text;
+      appendStream('wave4b-terminal', ev.delta.text);
+    }
+  }
+  trackUsage(ptIn, ptOut);
+
+  const patch = tryParse(ptFull);
+  renderPatch(patch);
+  document.getElementById('patch-state').textContent = '✓ Complete';
+
+  setTimer(4, `✓ ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  setPipeState(4, 'done');
+  sec.classList.remove('wave-active');
+  sec.classList.add('wave-done');
 }
 
 // ── Final reveal ──────────────────────────────────────────────────────────
@@ -1123,6 +1356,23 @@ async function runPipeline() {
   state.scores   = [];
   state.findings = [];
   state.verdicts = [];
+  state.usage    = { input_tokens: 0, output_tokens: 0 };
+  const costBar  = document.getElementById('costBar');
+  if (costBar) costBar.hidden = true;
+
+  // Re-lock wave 4
+  const w4 = document.getElementById('wave4-section');
+  w4.classList.remove('wave-active', 'wave-done');
+  w4.classList.add('wave-locked');
+  document.getElementById('priorityArea').innerHTML  =
+    '<div class="waiting-msg">Waiting for Wave 3 to complete…</div>';
+  document.getElementById('patchArea').innerHTML     =
+    '<div class="waiting-msg">Waiting for priority assessment…</div>';
+  document.getElementById('priority-state').textContent = '';
+  document.getElementById('patch-state').textContent    = '';
+  ['wave4a-terminal','wave4b-terminal'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = '';
+  });
   document.getElementById('revealSection').hidden  = true;
   document.getElementById('cleanSection').hidden   = true;
   ['wave1-terminal', 'wave3-terminal'].forEach(id => {
@@ -1139,7 +1389,7 @@ async function runPipeline() {
     s.classList.remove('wave-active','wave-done');
     s.classList.add('wave-locked');
   });
-  [1,2,3].forEach(n => setPipeState(n, null));
+  [1,2,3,4].forEach(n => setPipeState(n, null));
 
   try {
     const highRisk = await runWave1();
@@ -1153,6 +1403,7 @@ async function runPipeline() {
 
     const verdicts = await runWave3();
     showReveal(verdicts);
+    await runWave4(verdicts);
 
     btn.textContent = '↺  Run Again';
     btn.disabled    = false;

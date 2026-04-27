@@ -90,6 +90,20 @@
         <div class="pipe-circle">3</div>
         <div class="pipe-label">Confirmation</div>
       </div>
+      <div class="pipe-line"></div>
+      <div class="pipe-step" id="pipe4">
+        <div class="pipe-circle">4</div>
+        <div class="pipe-label">Remediation</div>
+      </div>
+    </div>
+
+    <!-- Cost counter — updates live after each wave -->
+    <div class="cost-bar" id="costBar" hidden>
+      <span class="cost-label">Running cost</span>
+      <span class="cost-tokens" id="costTokens">—</span>
+      <span class="cost-sep">·</span>
+      <span class="cost-estimate">Est. <strong id="costEst">$0.00</strong></span>
+      <span class="cost-note">(approximate — check <a href="https://www.anthropic.com/pricing" target="_blank" rel="noopener">anthropic.com/pricing</a> for current rates)</span>
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════════════
@@ -228,6 +242,63 @@
           financial code, invisible to normal code review. Integer sign-inversion in financial systems has
           caused real-world losses in production — it's not a toy class of vulnerability.
         </p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         WAVE 4 — REMEDIATION
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <section class="wave-section wave-locked" id="wave4-section">
+      <div class="wave-header w4-accent">
+        <div class="wave-badge w4-badge">Wave 4</div>
+        <div class="wave-title-group">
+          <h2>Remediation</h2>
+          <p>The AI prioritises every finding by risk, then writes a code fix for the most critical one.</p>
+        </div>
+        <div class="wave-timer" id="wave4-timer"></div>
+      </div>
+
+      <div class="explainer">
+        <div class="explainer-icon">🔧</div>
+        <div class="explainer-body">
+          <strong>Why this matters:</strong> Finding vulnerabilities is only half the problem.
+          Fewer than 1% of the bugs discovered by the real Glasswing project had been patched at launch —
+          the bottleneck is not discovery, it's remediation. This wave shows how AI can also help triage
+          the backlog (ranking by exploitability and blast radius) and draft the actual fix, giving
+          engineering teams a head start rather than just a list of problems.
+        </div>
+      </div>
+
+      <!-- Priority ranking -->
+      <div class="w4-panel" id="priorityPanel">
+        <div class="w4-panel-header">
+          <span class="w4-panel-icon">⚡</span>
+          <span class="w4-panel-title">Priority Assessment</span>
+          <span class="w4-panel-state" id="priority-state"></span>
+        </div>
+        <div class="priority-area" id="priorityArea">
+          <div class="waiting-msg">Waiting for Wave 3 to complete…</div>
+        </div>
+        <details class="raw-drawer">
+          <summary>See raw AI response</summary>
+          <div class="terminal" id="wave4a-terminal"></div>
+        </details>
+      </div>
+
+      <!-- Patch generation -->
+      <div class="w4-panel" id="patchPanel">
+        <div class="w4-panel-header">
+          <span class="w4-panel-icon">📝</span>
+          <span class="w4-panel-title">Generated Patch — Highest Priority Finding</span>
+          <span class="w4-panel-state" id="patch-state"></span>
+        </div>
+        <div class="patch-area" id="patchArea">
+          <div class="waiting-msg">Waiting for priority assessment…</div>
+        </div>
+        <details class="raw-drawer">
+          <summary>See raw AI response</summary>
+          <div class="terminal" id="wave4b-terminal"></div>
+        </details>
       </div>
     </section>
 
