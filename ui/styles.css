@@ -670,36 +670,6 @@ main {
 }
 .real-world-box p:last-child { margin-bottom: 0; }
 
-/* ── Plain-English streaming area ────────────────────────────────────────── */
-.explain-loading {
-  color: var(--text-dim);
-  font-size: 13px;
-  margin-bottom: 10px;
-}
-.explain-stream {
-  font-size: 14px;
-  line-height: 1.75;
-  color: var(--text);
-  white-space: pre-wrap;
-  min-height: 40px;
-}
-
-/* "live AI" badge next to section headings */
-.live-badge {
-  display: inline-block;
-  margin-left: 10px;
-  padding: 2px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  border-radius: 10px;
-  background: var(--green-bg);
-  color: var(--green);
-  border: 1px solid var(--green-dim);
-  vertical-align: middle;
-}
-
 /* ── No-finding fallback ─────────────────────────────────────────────────── */
 .clean-section {
   border: 1px solid var(--green-dim);
