@@ -675,6 +675,90 @@ main {
 }
 .real-world-box p:last-child { margin-bottom: 0; }
 
+/* ── Remediation CTA ─────────────────────────────────────────────────────── */
+.cta-section {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 32px;
+  align-items: start;
+  padding: 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--purple-dim);
+  border-radius: var(--radius-lg);
+  animation: reveal-in .5s ease-out;
+}
+.cta-icon {
+  font-size: 28px;
+  color: var(--green);
+  margin-bottom: 12px;
+}
+.cta-heading {
+  font-size: 20px;
+  color: var(--text-bright);
+  margin-bottom: 12px;
+}
+.cta-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.cta-body:last-child { margin-bottom: 0; }
+
+.cta-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 260px;
+}
+.cta-what {
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.cta-what-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.cta-what-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.cta-what-item:last-child { margin-bottom: 0; }
+.cta-check { color: var(--purple); flex-shrink: 0; }
+
+.btn-remediate {
+  padding: 14px 24px;
+  background: var(--purple);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s, transform .15s;
+  letter-spacing: .02em;
+  width: 100%;
+}
+.btn-remediate:hover:not(:disabled) { background: #d0a8ff; transform: translateY(-1px); }
+.btn-remediate:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+.cta-note {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
 /* ── Cost bar ────────────────────────────────────────────────────────────── */
 .cost-bar {
   display: flex;

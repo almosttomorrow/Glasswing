@@ -1343,6 +1343,20 @@ function showReveal(verdicts) {
   const sec = document.getElementById('revealSection');
   sec.hidden = false;
   setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+  // Show the remediation CTA and wire up the button with access to verdicts
+  const cta = document.getElementById('ctaSection');
+  cta.hidden = false;
+  const remBtn = document.getElementById('remediateBtn');
+  // Replace any previous listener by cloning the node
+  const freshBtn = remBtn.cloneNode(true);
+  remBtn.replaceWith(freshBtn);
+  freshBtn.addEventListener('click', async () => {
+    freshBtn.disabled = true;
+    freshBtn.textContent = '⟳  Running…';
+    cta.hidden = true;
+    await runWave4(verdicts);
+  });
 }
 
 // ── Main pipeline ─────────────────────────────────────────────────────────
@@ -1375,6 +1389,7 @@ async function runPipeline() {
   });
   document.getElementById('revealSection').hidden  = true;
   document.getElementById('cleanSection').hidden   = true;
+  document.getElementById('ctaSection').hidden     = true;
   ['wave1-terminal', 'wave3-terminal'].forEach(id => {
     const el = document.getElementById(id); if (el) el.textContent = '';
   });
@@ -1403,7 +1418,6 @@ async function runPipeline() {
 
     const verdicts = await runWave3();
     showReveal(verdicts);
-    await runWave4(verdicts);
 
     btn.textContent = '↺  Run Again';
     btn.disabled    = false;
